@@ -2,9 +2,7 @@ from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import argparse 
 
 from .Dataset import LocalizationDataset
-from .Models import CNNATT
-
-
+from .Trainer import TrainCNNATT, create_trainer
 
 if __name__=='__main__':
   num_epochs = 25
@@ -28,5 +26,3 @@ if __name__=='__main__':
   model = TrainCNNATT()
   trainer = create_trainer('logs/CNNATT', max_epochs=num_epochs)
   trainer.fit(model, train_dataloader=train_dataloader, valid_dataloader=valid_dataloader)
-  
-  
