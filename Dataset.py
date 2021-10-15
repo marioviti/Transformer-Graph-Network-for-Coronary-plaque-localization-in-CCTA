@@ -1,3 +1,19 @@
+import numpy as np
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+
+def sample_patches(volume, coordinates, shape):
+    patches = np.concatenate( [ sample_patch(volume, center, shape)[np.newaxis] for center in coordinates ], axis=0)
+    return patches
+
+def sample_patch(volume, center, shape):
+    begx,begy,begz = np.maximum(0, np.array(center) - np.array(shape)//2. ).round().astype(int)
+    endx,endy,endz = np.minimum(np.array(volume.shape), np.array(center) + np.array(shape)/2. ).round().astype(int)
+    patch = volume[begx:endx, begy:endy, begz:endz ]
+    dx,dy,dz = (np.array(shape) - ( np.array([endx,endy,endz]) - np.array([begx,begy,begz]) )  ).astype(int)
+    patch = np.pad(patch, [ (dx//2,dx//2+dx%2), (dy//2,dy//2+dy%2), (dz//2,dz//2+dz%2) ], mode='reflect')
+    return patch
+
+
 def get_k_neigh(node_i, adj, k=3):
   hops, neigh = [],[]
   adjlist = [node_i]
