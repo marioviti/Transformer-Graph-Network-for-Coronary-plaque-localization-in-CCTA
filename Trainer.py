@@ -1,10 +1,71 @@
-
 import os
 import torch as th
+import torch.nn as nn
+import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 import copy
+
+from .Models import CNNATT, WindowingHU, Augmentation
+
+class TrainCNNATT(pl.LightningModule):
+    
+    def __init__(self, hparams, **kwargs):
+        super().__init__()
+        self.save_hyperparameters()
+        self.cnn = CNNATT(input_channels=1, output_channels=1)
+        self.preprocess = WindowingHU(**preprocess_hparams)
+        self.augmentation = Augmentation()
+        self.BCEWithLogitsLoss = nn.BCEWithLogitsLoss()
+
+    def forward(self, x, pos):
+        y = self.cnn(self.preprocess(x), pos)
+        return y
+    
+    def get_log(self,outputs):
+        loc_targets = th.cat([ x['targets'] for x in outputs] ).squeeze()
+        loc_logits = th.cat([ x['logits'] for x in outputs] ).squeeze()
+        loss = th.tensor([ x['loss'] for x in outputs]).mean()
+        log['loss'] = loss
+        return log
+    
+    def training_epoch_end(self, outputs):
+        log = self.get_log(outputs)
+        self.trainer.train_log(log)
+        
+    def validation_epoch_end(self, outputs):
+        log = self.get_log(outputs)
+        self.trainer.valid_log(log)
+        log = { 'val_loss' : log['loss'], **log }
+        return log
+    
+    def training_step(self, batch, batch_idx):
+        x, pos, targets = batch
+        batch_size, neighbourhood, input_channels, depth, height, width = x.shape
+        x = x.view(batch_size*neighbourhood, input_channels, depth, height, width)
+        x = self.augmentation(x)
+        _ , input_channels, depth, height, width = x.shape
+        x = x.view(batch_size, neighbourhood, input_channels, depth, height, width)
+        logits = self(x,pos)
+        loss = self.BCEWithLogitsLoss(logits[targets>=0].squeeze(), targets[targets>=0].squeeze())
+        logits = logits[:,0,:]
+        targets = targets[:,0]
+        output = { 'logits': logits, 'targets': targets, 'loss': loss }
+        return output
+
+    def validation_step(self, batch, batch_idx):
+        x, pos, targets = batch
+        logits = self(x,pos)
+        logits = logits[:,0,:]
+        targets = targets[:,0]
+        loss = self.BCEWithLogitsLoss(logits.squeeze(), targets.squeeze())
+        output = { 'logits': logits, 'targets': targets, 'loss': loss }
+        return output
+    
+    def configure_optimizers(self):
+        optimizer0 = th.optim.Adam(self.cnn.parameters(), lr=0.0001)
+        return { 'optimizer': optimizer0 }
 
 class TrainEvalTrainer(pl.Trainer):
     def __init__(self, *args,  train_logger=None, valid_logger=None, **kwargs ):
