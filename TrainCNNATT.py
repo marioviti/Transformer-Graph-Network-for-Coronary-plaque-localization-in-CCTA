@@ -26,7 +26,7 @@ if __name__=='__main__':
   valid_dataloader = Dataloader(valid_dataset,batch_size=batch_size, shuffle=False)
   
   model = TrainCNNATT()
-  trainer = create_trainer('logs/CNNATT', num_epochs=num_epochs)
+  trainer = create_trainer('logs/CNNATT', max_epochs=num_epochs)
   trainer.fit(model, train_dataloader=train_dataloader, valid_dataloader=valid_dataloader)
   
   
